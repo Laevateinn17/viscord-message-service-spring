@@ -21,7 +21,7 @@ public class MessageMention {
 
     @ManyToOne
     @MapsId("messageId")
-//    @JoinColumn(name = "message_id")
+    @JoinColumn(name = "message_id")
     private Message message;
 
     public UUID getUserId() {

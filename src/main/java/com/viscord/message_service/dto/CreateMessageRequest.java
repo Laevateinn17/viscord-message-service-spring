@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,7 +17,7 @@ public class CreateMessageRequest {
 
     private UUID channelId;
 
-    private List<UUID> mentions;
+    private List<UUID> mentions = new ArrayList<>();
 
     private UUID senderId;
 //    private List<File> attachments;

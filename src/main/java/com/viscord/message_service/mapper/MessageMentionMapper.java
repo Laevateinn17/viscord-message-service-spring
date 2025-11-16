@@ -19,13 +19,4 @@ public interface MessageMentionMapper {
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
-
-    default MessageMention toEntity(UUID userId) {
-        MessageMention mention =  new MessageMention();
-        mention.setUserId(userId);
-
-        return mention;
-    }
-
-    public abstract List<MessageMention> toEntity(List<UUID> userIds);
 }

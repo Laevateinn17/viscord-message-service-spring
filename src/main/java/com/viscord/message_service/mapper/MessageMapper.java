@@ -4,6 +4,7 @@ import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.model.message.Message;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
 import java.util.List;
 
@@ -11,5 +12,7 @@ import java.util.List;
 public abstract class MessageMapper {
     public abstract MessageResponse toDto(Message message);
     public abstract List<MessageResponse> toDto(List<Message> messages);
+
+    @Mapping(target = "mentions", ignore = true)
     public abstract Message toEntity(CreateMessageRequest request);
 }

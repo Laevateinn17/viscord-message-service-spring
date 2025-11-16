@@ -3,6 +3,7 @@ package com.viscord.message_service.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
+import org.hibernate.boot.model.source.spi.AssociationSource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ public class MessageControllerIntegrationTest {
         CreateMessageRequest request = new CreateMessageRequest();
         request.setSenderId(UUID.randomUUID());
         request.setContent("Hello there!");
+        request.setMentions(new ArrayList<>(List.of(UUID.randomUUID())));
 
         MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post(CHANNEL_MESSAGE_ENDPOINT)
                         .header("X-User-Id", request.getSenderId())
@@ -56,6 +58,7 @@ public class MessageControllerIntegrationTest {
         Assertions.assertNotNull(response.getId());
         Assertions.assertEquals(request.getSenderId(), response.getSenderId());
         Assertions.assertEquals(request.getContent(), response.getContent());
+        Assertions.assertEquals(request.getMentions().size(), response.getMentions().size());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.viscord.message_service.model.message;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,9 @@ import java.util.UUID;
 @Getter @Setter @NoArgsConstructor
 @Embeddable
 public class MessageMentionId implements Serializable {
+    @Column(name = "message_id")
     private UUID messageId;
+    @Column(name = "user_id")
     private UUID userId;
 
     public MessageMentionId(UUID messageId, UUID userId) {

@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,8 +40,16 @@ public class Message {
     private Instant updatedAt;
 
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<MessageMention> mentions;
+    private List<MessageMention> mentions = new ArrayList<>();
 
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Attachment> attachments;
+    private List<Attachment> attachments = new ArrayList<>();
+
+    public void addMention(MessageMention mention) {
+        mentions.add(mention);
+    }
+
+    public void addAttachment(Attachment attachment) {
+        attachments.add(attachment);
+    }
 }
