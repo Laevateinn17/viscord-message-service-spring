@@ -9,6 +9,10 @@ import com.viscord.message_service.model.message.Message;
 import com.viscord.message_service.model.message.MessageMention;
 import com.viscord.message_service.repository.MessageRepository;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import net.devh.boot.grpc.client.inject.GrpcClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -16,14 +20,13 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class MessageService {
     private final MessageRepository messageRepository;
     private final MessageMapper messageMapper;
 
-    public MessageService(MessageRepository messageRepository, MessageMapper messageMapper) {
-        this.messageRepository = messageRepository;
-        this.messageMapper = messageMapper;
-    }
+//    @GrpcClient("guild-service")
+//    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
 
     public List<MessageResponse> getAllMessages() {
         return messageMapper.toDto(messageRepository.findAll());
@@ -34,9 +37,21 @@ public class MessageService {
     }
 
     public MessageResponse createMessage(CreateMessageRequest request) {
-        Message message = messageMapper.toEntity(request);
-        message = messageRepository.save(message);
+        System.out.println(request.getContent());
+        boolean isContentEmpty = request.getContent() == null || request.getContent().isBlank();
+        boolean isAttachmentEmpty = request.getAttachments() == null || request.getAttachments().stream().allMatch(file -> file.getSize() == 0);
 
+        if (isContentEmpty && isAttachmentEmpty) {
+            throw new BadRequestException("Message content cannot be empty");
+        }
+
+//        GetChannelByIdResponse response = channelStub.getChannelById(GetChannelByIdRequest.newBuilder()
+//                .setChannelId(request.getChannelId().toString())
+//                .setUserId(request.getSenderId().toString()).build());
+        Message message = messageMapper.toEntity(request);
+//
+        message = messageRepository.save(message);
+//
         if (!request.getMentions().isEmpty()) {
             for (UUID userId : request.getMentions()) {
                 MessageMention mention = new MessageMention();
