@@ -3,6 +3,9 @@ package com.viscord.message_service.service;
 import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.exception.BadRequestException;
+import com.viscord.message_service.grpc.ChannelsServiceGrpc;
+import com.viscord.message_service.grpc.GetChannelByIdRequest;
+import com.viscord.message_service.grpc.GetChannelByIdResponse;
 import com.viscord.message_service.mapper.MessageMapper;
 import com.viscord.message_service.mapper.MessageMentionMapper;
 import com.viscord.message_service.model.message.Message;
@@ -25,8 +28,8 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final MessageMapper messageMapper;
 
-//    @GrpcClient("guild-service")
-//    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
+    @GrpcClient("guild-service")
+    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
 
     public List<MessageResponse> getAllMessages() {
         return messageMapper.toDto(messageRepository.findAll());
@@ -45,13 +48,15 @@ public class MessageService {
             throw new BadRequestException("Message content cannot be empty");
         }
 
-//        GetChannelByIdResponse response = channelStub.getChannelById(GetChannelByIdRequest.newBuilder()
-//                .setChannelId(request.getChannelId().toString())
-//                .setUserId(request.getSenderId().toString()).build());
+        GetChannelByIdResponse response = channelStub.getChannelById(GetChannelByIdRequest.newBuilder()
+                .setChannelId(request.getChannelId().toString())
+                .setUserId(request.getSenderId().toString()).build());
+
+        System.out.println("status: " + response.getStatus());
+
         Message message = messageMapper.toEntity(request);
-//
         message = messageRepository.save(message);
-//
+
         if (!request.getMentions().isEmpty()) {
             for (UUID userId : request.getMentions()) {
                 MessageMention mention = new MessageMention();
