@@ -3,9 +3,8 @@ package com.viscord.message_service.service;
 import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.exception.BadRequestException;
-import com.viscord.message_service.grpc.ChannelsServiceGrpc;
-import com.viscord.message_service.grpc.GetChannelByIdRequest;
-import com.viscord.message_service.grpc.GetChannelByIdResponse;
+import com.viscord.message_service.exception.ForbiddenException;
+import com.viscord.message_service.grpc.*;
 import com.viscord.message_service.mapper.MessageMapper;
 import com.viscord.message_service.mapper.MessageMentionMapper;
 import com.viscord.message_service.model.message.Message;
@@ -15,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,7 +29,7 @@ public class MessageService {
     private final MessageMapper messageMapper;
 
     @GrpcClient("guild-service")
-    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
+    private final ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
 
     public List<MessageResponse> getAllMessages() {
         return messageMapper.toDto(messageRepository.findAll());
@@ -40,7 +40,6 @@ public class MessageService {
     }
 
     public MessageResponse createMessage(CreateMessageRequest request) {
-        System.out.println(request.getContent());
         boolean isContentEmpty = request.getContent() == null || request.getContent().isBlank();
         boolean isAttachmentEmpty = request.getAttachments() == null || request.getAttachments().stream().allMatch(file -> file.getSize() == 0);
 
@@ -48,11 +47,16 @@ public class MessageService {
             throw new BadRequestException("Message content cannot be empty");
         }
 
-        GetChannelByIdResponse response = channelStub.getChannelById(GetChannelByIdRequest.newBuilder()
+        CanUserSendMessageResponse response = channelStub.canUserSendMessage(CanUserSendMessageRequest.newBuilder()
                 .setChannelId(request.getChannelId().toString())
-                .setUserId(request.getSenderId().toString()).build());
+                .setUserId(request.getSenderId().toString())
+                .build());
 
-        System.out.println("status: " + response.getStatus());
+        final boolean canUserSendMessage = response.getData();
+        if (!canUserSendMessage) {
+            if (response.getStatus() == HttpStatus.BAD_REQUEST.value()) throw new BadRequestException(response.getMessage());
+            throw new ForbiddenException(response.getMessage());
+        }
 
         Message message = messageMapper.toEntity(request);
         message = messageRepository.save(message);
