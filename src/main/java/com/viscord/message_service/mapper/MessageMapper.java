@@ -14,5 +14,6 @@ public abstract class MessageMapper {
     public abstract List<MessageResponse> toDto(List<Message> messages);
 
     @Mapping(target = "mentions", ignore = true)
+    @Mapping(target = "attachments", ignore = true)
     public abstract Message toEntity(CreateMessageRequest request);
 }

@@ -13,6 +13,7 @@ import com.viscord.message_service.repository.MessageRepository;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,23 +25,27 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 public class MessageServiceTest {
-    @Mock
-    private AttachmentMapper attachmentMapper;
-
     @Spy
     private MessageMapper messageMapper = Mappers.getMapper(MessageMapper.class);
+
+    @Spy
+    private AttachmentMapper attachmentMapper = Mappers.getMapper(AttachmentMapper.class);
 
     @Mock
     private MessageRepository messageRepository;
 
     @Mock
     private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
+
+    @Mock
+    private StorageService storageService;
 
     @InjectMocks
     private MessageService messageService;
@@ -131,10 +136,20 @@ public class MessageServiceTest {
     @DisplayName("Happy path: given empty content but with attachment, should save message")
     void createMessage_EmptyContentWithAttachment_ReturnsMessageResponse() {
         CreateMessageRequest req = createRequest("");
-        req.setAttachments(List.of(new MockMultipartFile("file.txt", "This is a text file".getBytes())));
+        req.setAttachments(List.of(new MockMultipartFile("file", "test.txt", "text/plain", "content".getBytes())));
 
         Mockito.when(channelStub.canUserSendMessage(Mockito.any())).thenReturn(createCanUserSendMessageResponse(true, HttpStatus.OK.value(), ""));
-        Mockito.when(messageRepository.save(ArgumentMatchers.any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        Mockito.when(messageRepository.save(ArgumentMatchers.any(Message.class))).thenAnswer(invocation -> {
+            Message message = invocation.getArgument(0, Message.class);
+            message.setId(UUID.randomUUID());
+
+            return message;
+        });
+        Mockito.when(storageService.uploadFile(Mockito.any(), Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+            MultipartFile file = invocation.getArgument(0, MultipartFile.class);
+
+            return String.format("example/key/%s", file.getOriginalFilename());
+        });
 
         MessageResponse result = messageService.createMessage(req);
 
@@ -142,6 +157,7 @@ public class MessageServiceTest {
         Assertions.assertNotNull(result);
         Assertions.assertEquals(req.getSenderId(), result.getSenderId());
         Assertions.assertEquals(req.getContent(), result.getContent());
+        Assertions.assertEquals(req.getAttachments().size(), result.getAttachments().size());
     }
 
     @Test
