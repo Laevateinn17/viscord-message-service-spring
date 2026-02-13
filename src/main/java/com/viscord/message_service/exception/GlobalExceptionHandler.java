@@ -16,7 +16,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(ForbiddenException.class)
-    public ResponseEntity<ErrorResponse> handleForbiddenRequest(BadRequestException e) {
+    public ResponseEntity<ErrorResponse> handleForbiddenRequest(ForbiddenException e) {
         System.err.println(e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(e.getMessage()));
     }

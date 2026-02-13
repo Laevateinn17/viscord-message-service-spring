@@ -33,7 +33,7 @@ public class MessageService {
     private final StorageService storageService;
 
     @GrpcClient("guild-service")
-    private final ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
+    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
 
     public List<MessageResponse> getAllMessages() {
         return messageMapper.toDto(messageRepository.findAll());
@@ -79,8 +79,6 @@ public class MessageService {
 
                 message.addAttachment(att);
             }
-
-            message = messageRepository.save(message);
         }
 
         if (!request.getMentions().isEmpty()) {
@@ -94,8 +92,8 @@ public class MessageService {
 
             }
 
-            message = messageRepository.save(message);
         }
+        message = messageRepository.save(message);
 
         return messageMapper.toDto(message);
     }

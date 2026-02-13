@@ -17,7 +17,7 @@ import java.util.UUID;
 public class StorageService {
 
     @Value("${spring.cloud.aws.s3.bucket}")
-    private final String bucketName;
+    private String bucketName;
 
     private final S3Template s3Template;
 
@@ -29,8 +29,10 @@ public class StorageService {
              s3Template.upload(this.bucketName, key, file.getInputStream());
 
             return key;
-        } catch (IOException exception) {
-            throw new RuntimeException("Failed to read file input stream");
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read file input stream", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload to AWS S3", e);
         }
     }
 }

@@ -39,7 +39,7 @@ public class ChannelMessageController {
     ) {
         data.setSenderId(userId);
         data.setChannelId(channelId);
-        data.setAttachments(attachments);
+        if (attachments != null) data.setAttachments(attachments);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(messageService.createMessage(data));
     }
