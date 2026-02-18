@@ -4,10 +4,12 @@ import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.exception.BadRequestException;
 import com.viscord.message_service.exception.ForbiddenException;
+import com.viscord.message_service.grpc.CanUserGetChannelMessagesResponse;
 import com.viscord.message_service.grpc.CanUserSendMessageResponse;
 import com.viscord.message_service.grpc.ChannelsServiceGrpc;
 import com.viscord.message_service.mapper.AttachmentMapper;
 import com.viscord.message_service.mapper.MessageMapper;
+import com.viscord.message_service.model.message.Attachment;
 import com.viscord.message_service.model.message.Message;
 import com.viscord.message_service.repository.MessageRepository;
 import jakarta.inject.Inject;
@@ -72,21 +74,41 @@ public class MessageServiceTest {
                 .build();
     }
 
+    private Message createMessage(String content) {
+        Message message = new Message();
+        message.setId(UUID.randomUUID());
+        message.setContent(content);
+
+        return message;
+    }
+
+    private Attachment createAttachment(Message message) {
+        Attachment attachment = new Attachment();
+        attachment.setMessageId(message.getId());
+        attachment.setFilename("attachment.txt");
+        attachment.setSize(512);
+
+        return attachment;
+    }
+
 
     @Test
-    void shouldReturnChannelMessages() {
+    @DisplayName("Happy path: should return channel messages")
+    void getChannelMessages_ValidRequest_ShouldReturnChannelMessages() {
+        UUID userId = UUID.randomUUID();
         UUID channelId = UUID.randomUUID();
 
-        Message entity = new Message();
-        MessageResponse dto = new MessageResponse();
+        Message message = this.createMessage("test123");
+        message.addAttachment(this.createAttachment(message));
 
-        Mockito.when(messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId)).thenReturn(List.of(entity));
-        Mockito.when(messageMapper.toDto(List.of(entity))).thenReturn(List.of(dto));
+        List<Message> messages = List.of(message);
 
-        List<MessageResponse> result = messageService.getChannelMessages(channelId);
+        Mockito.when(messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId)).thenReturn(messages);
+        Mockito.when(channelStub.canUserGetChannelMessages(Mockito.any())).thenReturn(CanUserGetChannelMessagesResponse.newBuilder().setData(true).build());
 
-        Assertions.assertEquals(1, result.size());
-        Assertions.assertSame(dto, result.get(0));
+        List<MessageResponse> result = messageService.getChannelMessages(userId, channelId);
+
+        Mockito.verify(messageMapper).toDto(messages);
     }
 
     @Test

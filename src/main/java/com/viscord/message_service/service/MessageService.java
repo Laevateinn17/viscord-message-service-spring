@@ -31,16 +31,51 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final MessageMapper messageMapper;
     private final StorageService storageService;
+    private final ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
 
-    @GrpcClient("guild-service")
-    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
+    public MessageService(
+            @GrpcClient("guild-service")
+            ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub,
+            MessageRepository messageRepository,
+            MessageMapper messageMapper,
+            StorageService storageService
+    ) {
+        this.channelStub = channelStub;
+        this.messageRepository = messageRepository;
+        this.messageMapper = messageMapper;
+        this.storageService = storageService;
+    }
 
     public List<MessageResponse> getAllMessages() {
         return messageMapper.toDto(messageRepository.findAll());
     }
 
-    public List<MessageResponse> getChannelMessages(UUID channelId) {
-        return messageMapper.toDto(messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId));
+    public List<MessageResponse> getChannelMessages(UUID userId, UUID channelId) {
+        if (channelId == null) {
+            throw new BadRequestException("Invalid channel ID");
+        }
+
+        if (userId == null) {
+            throw new ForbiddenException("User is not allowed to perform this action");
+        }
+
+        CanUserGetChannelMessagesResponse response = channelStub.canUserGetChannelMessages(
+                CanUserGetChannelMessagesRequest.newBuilder()
+                        .setUserId(userId.toString())
+                        .setChannelId(channelId.toString())
+                        .build());
+
+        boolean canUserGetChannelMessages = response.getData();
+
+        if (!canUserGetChannelMessages) {
+            if (response.getStatus() == HttpStatus.BAD_REQUEST.value())
+                throw new BadRequestException(response.getMessage());
+            else if (response.getStatus() == HttpStatus.FORBIDDEN.value())
+                throw new ForbiddenException(response.getMessage());
+            throw new RuntimeException(response.getMessage());
+        }
+
+        return this.messageMapper.toDto(this.messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId));
     }
 
     public MessageResponse createMessage(CreateMessageRequest request) {
@@ -58,7 +93,8 @@ public class MessageService {
 
         final boolean canUserSendMessage = response.getData();
         if (!canUserSendMessage) {
-            if (response.getStatus() == HttpStatus.BAD_REQUEST.value()) throw new BadRequestException(response.getMessage());
+            if (response.getStatus() == HttpStatus.BAD_REQUEST.value())
+                throw new BadRequestException(response.getMessage());
             throw new ForbiddenException(response.getMessage());
         }
 

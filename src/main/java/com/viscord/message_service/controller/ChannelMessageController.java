@@ -26,8 +26,11 @@ public class ChannelMessageController {
     }
 
     @GetMapping
-    public ResponseEntity<List<MessageResponse>> getChannelMessages(@PathVariable UUID channelId) {
-        return ResponseEntity.ok(messageService.getChannelMessages(channelId));
+    public ResponseEntity<List<MessageResponse>> getChannelMessages(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable UUID channelId
+    ) {
+        return ResponseEntity.ok(messageService.getChannelMessages(userId, channelId));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
