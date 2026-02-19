@@ -91,9 +91,30 @@ public class MessageServiceTest {
         return attachment;
     }
 
+    @Test
+    @DisplayName("Unhpapy path: given unauthorized user, should return forbidden error")
+    void getChannelMessages_UnauthorizedUser_ShouldReturnForbidden() {
+        UUID userId = UUID.randomUUID();
+        UUID channelId = UUID.randomUUID();
+
+        Message message = this.createMessage("test123");
+        message.addAttachment(this.createAttachment(message));
+
+        List<Message> messages = List.of(message);
+
+        Mockito.when(channelStub.canUserGetChannelMessages(Mockito.any())).thenReturn(CanUserGetChannelMessagesResponse.newBuilder()
+                .setData(false)
+                .setStatus(HttpStatus.FORBIDDEN.value()).build());
+
+        Assertions.assertThrows(ForbiddenException.class, () -> {
+            List<MessageResponse> result = messageService.getChannelMessages(userId, channelId);
+        });
+
+        Mockito.verify(this.messageRepository, Mockito.never()).findAllByChannelIdOrderByCreatedAtAsc(Mockito.any());
+    }
 
     @Test
-    @DisplayName("Happy path: should return channel messages")
+    @DisplayName("Happy path: given valid request, should return channel messages")
     void getChannelMessages_ValidRequest_ShouldReturnChannelMessages() {
         UUID userId = UUID.randomUUID();
         UUID channelId = UUID.randomUUID();
@@ -109,6 +130,9 @@ public class MessageServiceTest {
         List<MessageResponse> result = messageService.getChannelMessages(userId, channelId);
 
         Mockito.verify(messageMapper).toDto(messages);
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        Assertions.assertEquals(1, result.get(0).getAttachments().size());
     }
 
     @Test
@@ -152,7 +176,6 @@ public class MessageServiceTest {
 
         Mockito.verify(messageRepository, Mockito.never()).save(Mockito.any());
     }
-
 
     @Test
     @DisplayName("Happy path: given empty content but with attachment, should save message")

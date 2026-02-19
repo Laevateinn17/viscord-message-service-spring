@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class MessageService {
     private final MessageRepository messageRepository;
     private final MessageMapper messageMapper;
@@ -34,11 +33,10 @@ public class MessageService {
     private final ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
 
     public MessageService(
-            @GrpcClient("guild-service")
-            ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub,
             MessageRepository messageRepository,
             MessageMapper messageMapper,
-            StorageService storageService
+            StorageService storageService,
+            @GrpcClient("guild-service") ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub
     ) {
         this.channelStub = channelStub;
         this.messageRepository = messageRepository;
