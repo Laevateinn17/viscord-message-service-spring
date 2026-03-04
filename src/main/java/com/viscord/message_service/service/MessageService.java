@@ -55,23 +55,18 @@ public class MessageService {
         }
 
         if (userId == null) {
-            throw new ForbiddenException("User is not allowed to perform this action");
+            throw new BadRequestException("Invalid user ID");
         }
 
-        CanUserGetChannelMessagesResponse response = channelStub.canUserGetChannelMessages(
-                CanUserGetChannelMessagesRequest.newBuilder()
-                        .setUserId(userId.toString())
+        CheckPermissionResponse response = channelStub.checkPermission(
+                CheckPermissionRequest.newBuilder()
                         .setChannelId(channelId.toString())
-                        .build());
+                        .setUserId(userId.toString())
+                        .addPermissions(Permission.VIEW_CHANNELS).build()
+        );
 
-        boolean canUserGetChannelMessages = response.getData();
-
-        if (!canUserGetChannelMessages) {
-            if (response.getStatus() == HttpStatus.BAD_REQUEST.value())
-                throw new BadRequestException(response.getMessage());
-            else if (response.getStatus() == HttpStatus.FORBIDDEN.value())
-                throw new ForbiddenException(response.getMessage());
-            throw new RuntimeException(response.getMessage());
+        if (!response.getAllowed()) {
+            throw new ForbiddenException("User is not allowed to perform this action");
         }
 
         return this.messageMapper.toDto(this.messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId));
