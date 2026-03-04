@@ -8,6 +8,7 @@ import com.viscord.message_service.exception.NotFoundException;
 import com.viscord.message_service.grpc.CanUserDeleteMessageResponse;
 import com.viscord.message_service.grpc.CanUserSendMessageResponse;
 import com.viscord.message_service.grpc.ChannelsServiceGrpc;
+import com.viscord.message_service.grpc.CheckPermissionResponse;
 import com.viscord.message_service.mapper.AttachmentMapper;
 import com.viscord.message_service.mapper.MessageMapper;
 import com.viscord.message_service.model.message.Attachment;
@@ -105,9 +106,8 @@ public class MessageServiceTest {
 
         List<Message> messages = List.of(message);
 
-        Mockito.when(channelStub.canUserGetChannelMessages(Mockito.any())).thenReturn(CanUserGetChannelMessagesResponse.newBuilder()
-                .setData(false)
-                .setStatus(HttpStatus.FORBIDDEN.value()).build());
+        Mockito.when(channelStub.checkPermission(Mockito.any())).thenReturn(
+                CheckPermissionResponse.newBuilder().setAllowed(false).build());
 
         Assertions.assertThrows(ForbiddenException.class, () -> {
             List<MessageResponse> result = messageService.getChannelMessages(userId, channelId);
@@ -128,7 +128,8 @@ public class MessageServiceTest {
         List<Message> messages = List.of(message);
 
         Mockito.when(messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId)).thenReturn(messages);
-        Mockito.when(channelStub.canUserGetChannelMessages(Mockito.any())).thenReturn(CanUserGetChannelMessagesResponse.newBuilder().setData(true).build());
+        Mockito.when(channelStub.checkPermission(Mockito.any())).thenReturn(
+                CheckPermissionResponse.newBuilder().setAllowed(true).build());
 
         List<MessageResponse> result = messageService.getChannelMessages(userId, channelId);
 
