@@ -5,6 +5,7 @@ import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.enums.StorageCategory;
 import com.viscord.message_service.exception.BadRequestException;
 import com.viscord.message_service.exception.ForbiddenException;
+import com.viscord.message_service.exception.NotFoundException;
 import com.viscord.message_service.grpc.*;
 import com.viscord.message_service.mapper.MessageMapper;
 import com.viscord.message_service.mapper.MessageMentionMapper;
@@ -123,13 +124,27 @@ public class MessageService {
                 mention.setUserId(userId);
 
                 message.addMention(mention);
-
             }
-
         }
         message = messageRepository.save(message);
 
         return messageMapper.toDto(message);
+    }
+
+    public void deleteMessage(UUID userId, UUID messageId) {
+        Message message = messageRepository.findById(messageId).orElseThrow(() -> new NotFoundException("Invalid message ID"));
+
+        CanUserDeleteMessageResponse response = channelStub.canUserDeleteMessage(CanUserDeleteMessageRequest.newBuilder()
+                .setUserId(userId.toString())
+                .setChannelId(message.getChannelId().toString())
+                .setMessageAuthorId(message.getSenderId().toString())
+                .build()
+        );
+
+        if (!response.getAllowed()) {
+            throw new ForbiddenException("User is not allowed to perform this action");
+        }
+        messageRepository.delete(message);
     }
 
 }

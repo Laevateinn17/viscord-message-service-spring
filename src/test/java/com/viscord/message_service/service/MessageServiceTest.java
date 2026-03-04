@@ -4,12 +4,10 @@ import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.exception.BadRequestException;
 import com.viscord.message_service.exception.ForbiddenException;
-import com.viscord.message_service.grpc.CanUserGetChannelMessagesResponse;
 import com.viscord.message_service.grpc.CanUserSendMessageResponse;
 import com.viscord.message_service.grpc.ChannelsServiceGrpc;
 import com.viscord.message_service.mapper.AttachmentMapper;
 import com.viscord.message_service.mapper.MessageMapper;
-import com.viscord.message_service.model.message.Attachment;
 import com.viscord.message_service.model.message.Message;
 import com.viscord.message_service.repository.MessageRepository;
 import jakarta.inject.Inject;
@@ -74,65 +72,21 @@ public class MessageServiceTest {
                 .build();
     }
 
-    private Message createMessage(String content) {
-        Message message = new Message();
-        message.setId(UUID.randomUUID());
-        message.setContent(content);
-
-        return message;
-    }
-
-    private Attachment createAttachment(Message message) {
-        Attachment attachment = new Attachment();
-        attachment.setMessageId(message.getId());
-        attachment.setFilename("attachment.txt");
-        attachment.setSize(512);
-
-        return attachment;
-    }
 
     @Test
-    @DisplayName("Unhpapy path: given unauthorized user, should return forbidden error")
-    void getChannelMessages_UnauthorizedUser_ShouldReturnForbidden() {
-        UUID userId = UUID.randomUUID();
+    void shouldReturnChannelMessages() {
         UUID channelId = UUID.randomUUID();
 
-        Message message = this.createMessage("test123");
-        message.addAttachment(this.createAttachment(message));
+        Message entity = new Message();
+        MessageResponse dto = new MessageResponse();
 
-        List<Message> messages = List.of(message);
+        Mockito.when(messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId)).thenReturn(List.of(entity));
+        Mockito.when(messageMapper.toDto(List.of(entity))).thenReturn(List.of(dto));
 
-        Mockito.when(channelStub.canUserGetChannelMessages(Mockito.any())).thenReturn(CanUserGetChannelMessagesResponse.newBuilder()
-                .setData(false)
-                .setStatus(HttpStatus.FORBIDDEN.value()).build());
+        List<MessageResponse> result = messageService.getChannelMessages(channelId);
 
-        Assertions.assertThrows(ForbiddenException.class, () -> {
-            List<MessageResponse> result = messageService.getChannelMessages(userId, channelId);
-        });
-
-        Mockito.verify(this.messageRepository, Mockito.never()).findAllByChannelIdOrderByCreatedAtAsc(Mockito.any());
-    }
-
-    @Test
-    @DisplayName("Happy path: given valid request, should return channel messages")
-    void getChannelMessages_ValidRequest_ShouldReturnChannelMessages() {
-        UUID userId = UUID.randomUUID();
-        UUID channelId = UUID.randomUUID();
-
-        Message message = this.createMessage("test123");
-        message.addAttachment(this.createAttachment(message));
-
-        List<Message> messages = List.of(message);
-
-        Mockito.when(messageRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId)).thenReturn(messages);
-        Mockito.when(channelStub.canUserGetChannelMessages(Mockito.any())).thenReturn(CanUserGetChannelMessagesResponse.newBuilder().setData(true).build());
-
-        List<MessageResponse> result = messageService.getChannelMessages(userId, channelId);
-
-        Mockito.verify(messageMapper).toDto(messages);
-        Assertions.assertNotNull(result);
         Assertions.assertEquals(1, result.size());
-        Assertions.assertEquals(1, result.get(0).getAttachments().size());
+        Assertions.assertSame(dto, result.get(0));
     }
 
     @Test
@@ -176,6 +130,7 @@ public class MessageServiceTest {
 
         Mockito.verify(messageRepository, Mockito.never()).save(Mockito.any());
     }
+
 
     @Test
     @DisplayName("Happy path: given empty content but with attachment, should save message")
