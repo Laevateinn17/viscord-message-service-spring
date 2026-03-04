@@ -20,7 +20,13 @@ public class Attachment {
     private UUID messageId;
 
     @Column(nullable = false)
+    private String filename;
+
+    @Column(nullable = false)
     private String type;
+
+    @Column(nullable = false)
+    private long size;
 
     @Column(nullable = false)
     private String url;

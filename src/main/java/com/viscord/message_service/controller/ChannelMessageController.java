@@ -39,8 +39,18 @@ public class ChannelMessageController {
     ) {
         data.setSenderId(userId);
         data.setChannelId(channelId);
-        data.setAttachments(attachments);
+        if (attachments != null) data.setAttachments(attachments);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(messageService.createMessage(data));
+    }
+
+    @DeleteMapping("/{messageId}")
+    public ResponseEntity<Void> deleteMessage(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable UUID messageId) {
+
+        messageService.deleteMessage(userId, messageId);
+
+        return ResponseEntity.noContent().build();
     }
 }

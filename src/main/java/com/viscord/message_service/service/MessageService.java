@@ -2,9 +2,14 @@ package com.viscord.message_service.service;
 
 import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
+import com.viscord.message_service.enums.StorageCategory;
 import com.viscord.message_service.exception.BadRequestException;
+import com.viscord.message_service.exception.ForbiddenException;
+import com.viscord.message_service.exception.NotFoundException;
+import com.viscord.message_service.grpc.*;
 import com.viscord.message_service.mapper.MessageMapper;
 import com.viscord.message_service.mapper.MessageMentionMapper;
+import com.viscord.message_service.model.message.Attachment;
 import com.viscord.message_service.model.message.Message;
 import com.viscord.message_service.model.message.MessageMention;
 import com.viscord.message_service.repository.MessageRepository;
@@ -12,9 +17,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,9 +31,10 @@ import java.util.UUID;
 public class MessageService {
     private final MessageRepository messageRepository;
     private final MessageMapper messageMapper;
+    private final StorageService storageService;
 
-//    @GrpcClient("guild-service")
-//    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
+    @GrpcClient("guild-service")
+    private ChannelsServiceGrpc.ChannelsServiceBlockingStub channelStub;
 
     public List<MessageResponse> getAllMessages() {
         return messageMapper.toDto(messageRepository.findAll());
@@ -37,7 +45,6 @@ public class MessageService {
     }
 
     public MessageResponse createMessage(CreateMessageRequest request) {
-        System.out.println(request.getContent());
         boolean isContentEmpty = request.getContent() == null || request.getContent().isBlank();
         boolean isAttachmentEmpty = request.getAttachments() == null || request.getAttachments().stream().allMatch(file -> file.getSize() == 0);
 
@@ -45,13 +52,37 @@ public class MessageService {
             throw new BadRequestException("Message content cannot be empty");
         }
 
-//        GetChannelByIdResponse response = channelStub.getChannelById(GetChannelByIdRequest.newBuilder()
-//                .setChannelId(request.getChannelId().toString())
-//                .setUserId(request.getSenderId().toString()).build());
+        CanUserSendMessageResponse response = channelStub.canUserSendMessage(CanUserSendMessageRequest.newBuilder()
+                .setChannelId(request.getChannelId().toString())
+                .setUserId(request.getSenderId().toString())
+                .build());
+
+        final boolean canUserSendMessage = response.getData();
+        if (!canUserSendMessage) {
+            if (response.getStatus() == HttpStatus.BAD_REQUEST.value())
+                throw new BadRequestException(response.getMessage());
+            throw new ForbiddenException(response.getMessage());
+        }
+
         Message message = messageMapper.toEntity(request);
-//
         message = messageRepository.save(message);
-//
+
+        if (!request.getAttachments().isEmpty()) {
+            for (MultipartFile file : request.getAttachments()) {
+                Attachment att = new Attachment();
+                att.setFilename(file.getOriginalFilename());
+                att.setSize(file.getSize());
+                att.setType(file.getContentType());
+                att.setMessage(message);
+                att.setMessageId(message.getId());
+
+                String key = storageService.uploadFile(file, StorageCategory.ATTACHMENT, message.getId().toString());
+                att.setUrl(key);
+
+                message.addAttachment(att);
+            }
+        }
+
         if (!request.getMentions().isEmpty()) {
             for (UUID userId : request.getMentions()) {
                 MessageMention mention = new MessageMention();
@@ -60,13 +91,27 @@ public class MessageService {
                 mention.setUserId(userId);
 
                 message.addMention(mention);
-
             }
-
-            message = messageRepository.save(message);
         }
+        message = messageRepository.save(message);
 
         return messageMapper.toDto(message);
+    }
+
+    public void deleteMessage(UUID userId, UUID messageId) {
+        Message message = messageRepository.findById(messageId).orElseThrow(() -> new NotFoundException("Invalid message ID"));
+
+        CanUserDeleteMessageResponse response = channelStub.canUserDeleteMessage(CanUserDeleteMessageRequest.newBuilder()
+                .setUserId(userId.toString())
+                .setChannelId(message.getChannelId().toString())
+                .setMessageAuthorId(message.getSenderId().toString())
+                .build()
+        );
+
+        if (!response.getAllowed()) {
+            throw new ForbiddenException("User is not allowed to perform this action");
+        }
+        messageRepository.delete(message);
     }
 
 }
