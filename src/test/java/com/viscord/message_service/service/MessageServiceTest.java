@@ -4,6 +4,8 @@ import com.viscord.message_service.dto.CreateMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.exception.BadRequestException;
 import com.viscord.message_service.exception.ForbiddenException;
+import com.viscord.message_service.exception.NotFoundException;
+import com.viscord.message_service.grpc.CanUserDeleteMessageResponse;
 import com.viscord.message_service.grpc.CanUserSendMessageResponse;
 import com.viscord.message_service.grpc.ChannelsServiceGrpc;
 import com.viscord.message_service.mapper.AttachmentMapper;
@@ -28,6 +30,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,6 +73,16 @@ public class MessageServiceTest {
                 .setMessage(msg)
                 .setStatus(status)
                 .build();
+    }
+
+    private Message createMessage(String content) {
+        Message message = new Message();
+        message.setContent(content);
+        message.setId(UUID.randomUUID());
+        message.setSenderId(UUID.randomUUID());
+        message.setChannelId(UUID.randomUUID());
+
+        return message;
     }
 
 
@@ -181,4 +194,47 @@ public class MessageServiceTest {
         Assertions.assertEquals(req.getSenderId(), result.getSenderId());
         Assertions.assertEquals(req.getContent(), result.getContent());
     }
+
+    @Test
+    @DisplayName("Happy path: given valid request, should delete message")
+    void deleteMessage_ValidRequest_ReturnsEmpty() {
+        Message message = createMessage("test");
+
+        Mockito.when(messageRepository.findById(message.getId())).thenReturn(Optional.of(message));
+        Mockito.when(channelStub.canUserDeleteMessage(Mockito.any())).thenReturn(
+                CanUserDeleteMessageResponse.newBuilder().setAllowed(true).build());
+
+        messageService.deleteMessage(message.getSenderId(), message.getId());
+
+        Mockito.verify(messageRepository, Mockito.times(1)).delete(message);
+    }
+
+    @Test
+    @DisplayName("Unhappy path: given invalid message id, should throw not found error")
+    void deleteMessage_InvalidMessageId_ThrowsNotFound() {
+        Mockito.when(messageRepository.findById(Mockito.any())).thenReturn(Optional.empty());
+
+        Assertions.assertThrows(NotFoundException.class, () -> {
+            messageService.deleteMessage(UUID.randomUUID(), UUID.randomUUID());
+        });
+
+        Mockito.verify(messageRepository, Mockito.never()).delete(Mockito.any());
+        Mockito.verify(channelStub, Mockito.never()).canUserDeleteMessage(Mockito.any());
+    }
+
+    @Test
+    @DisplayName("Unhappy path: when delete message permission is denied, should throw forbidden")
+    void deleteMessage_PermissionDenied_ThrowsForbidden() {
+        Message message = createMessage("test");
+
+        Mockito.when(messageRepository.findById(message.getId())).thenReturn(Optional.of(message));
+        Mockito.when(channelStub.canUserDeleteMessage(Mockito.any())).thenReturn(CanUserDeleteMessageResponse.newBuilder().setAllowed(false).build());
+
+        Assertions.assertThrows(ForbiddenException.class, () -> {
+            messageService.deleteMessage(message.getSenderId(), message.getId());
+        });
+
+        Mockito.verify(messageRepository, Mockito.never()).delete(Mockito.any());
+    }
 }
+
