@@ -1,6 +1,7 @@
 package com.viscord.message_service.service;
 
 import com.viscord.message_service.dto.CreateMessageRequest;
+import com.viscord.message_service.dto.EditMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.enums.StorageCategory;
 import com.viscord.message_service.exception.BadRequestException;
@@ -140,6 +141,37 @@ public class MessageService {
             throw new ForbiddenException("User is not allowed to perform this action");
         }
         messageRepository.delete(message);
+    }
+
+    public MessageResponse editMessage(EditMessageRequest request) {
+        if ((request.getContent() == null || request.getContent().trim().isBlank()) && request.getAttachments() == null) {
+            throw new BadRequestException("Content cannot be empty");
+        }
+
+        Message message = messageRepository.findById(request.getMessageId()).orElseThrow(() -> new NotFoundException("Invalid message ID"));
+
+        if (!message.getSenderId().equals(request.getUserId())) {
+            throw new ForbiddenException("Only the author is allowed to perform this action");
+        }
+
+        if (request.getContent() != null) {
+            message.setContent(request.getContent().trim());
+        }
+
+        if (request.getAttachments() != null && request.getAttachments().size() < message.getAttachments().size()) {
+            message.getAttachments().removeIf(attachment -> !request.getAttachments().contains(attachment.getId()));
+
+            for (Attachment attachment : message.getAttachments()) {
+                if (!request.getAttachments().contains(attachment.getId())) {
+                    this.storageService.deleteFile(attachment.getUrl());
+                    message.getAttachments().remove(attachment);
+                }
+            }
+        }
+
+        messageRepository.save(message);
+
+        return messageMapper.toDto(message);
     }
 
 }
