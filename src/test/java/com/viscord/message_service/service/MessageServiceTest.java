@@ -1,6 +1,7 @@
 package com.viscord.message_service.service;
 
 import com.viscord.message_service.dto.CreateMessageRequest;
+import com.viscord.message_service.dto.EditMessageRequest;
 import com.viscord.message_service.dto.MessageResponse;
 import com.viscord.message_service.exception.BadRequestException;
 import com.viscord.message_service.exception.ForbiddenException;
@@ -31,7 +32,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,6 +91,7 @@ public class MessageServiceTest {
 
     private Attachment createAttachment(Message message) {
         Attachment attachment = new Attachment();
+        attachment.setId(UUID.randomUUID());
         attachment.setMessageId(message.getId());
         attachment.setFilename("attachment.txt");
         attachment.setSize(512);
@@ -229,5 +233,100 @@ public class MessageServiceTest {
         Assertions.assertNotNull(result);
         Assertions.assertEquals(req.getSenderId(), result.getSenderId());
         Assertions.assertEquals(req.getContent(), result.getContent());
+    }
+
+    @Test
+    @DisplayName("Happy path: given valid request, should delete message")
+    void deleteMessage_ValidRequest_ReturnsEmpty() {
+        Message message = createMessage("test");
+
+        Mockito.when(messageRepository.findById(message.getId())).thenReturn(Optional.of(message));
+        Mockito.when(channelStub.canUserDeleteMessage(Mockito.any())).thenReturn(
+                CanUserDeleteMessageResponse.newBuilder().setAllowed(true).build());
+
+        messageService.deleteMessage(message.getSenderId(), message.getId());
+
+        Mockito.verify(messageRepository, Mockito.times(1)).delete(message);
+    }
+
+    @Test
+    @DisplayName("Unhappy path: given invalid message id, should throw not found error")
+    void deleteMessage_InvalidMessageId_ThrowsNotFound() {
+        Mockito.when(messageRepository.findById(Mockito.any())).thenReturn(Optional.empty());
+
+        Assertions.assertThrows(NotFoundException.class, () -> {
+            messageService.deleteMessage(UUID.randomUUID(), UUID.randomUUID());
+        });
+
+        Mockito.verify(messageRepository, Mockito.never()).delete(Mockito.any());
+        Mockito.verify(channelStub, Mockito.never()).canUserDeleteMessage(Mockito.any());
+    }
+
+    @Test
+    @DisplayName("Unhappy path: when delete message permission is denied, should throw forbidden")
+    void deleteMessage_PermissionDenied_ThrowsForbidden() {
+        Message message = createMessage("test");
+
+        Mockito.when(messageRepository.findById(message.getId())).thenReturn(Optional.of(message));
+        Mockito.when(channelStub.canUserDeleteMessage(Mockito.any())).thenReturn(CanUserDeleteMessageResponse.newBuilder().setAllowed(false).build());
+
+        Assertions.assertThrows(ForbiddenException.class, () -> {
+            messageService.deleteMessage(message.getSenderId(), message.getId());
+        });
+
+        Mockito.verify(messageRepository, Mockito.never()).delete(Mockito.any());
+    }
+
+    @Test
+    @DisplayName("Happy path: when changing content, should return edited message and not modify attachment")
+    void editMessage_ValidRequest_ReturnsEditedMessage() {
+        Message message = createMessage("Old message");
+        message.addAttachment(createAttachment(message));
+
+        EditMessageRequest request = new EditMessageRequest();
+        request.setMessageId(message.getId());
+        request.setContent("   New message");
+        request.setUserId(message.getSenderId());
+
+        Mockito.when(messageRepository.findById(request.getMessageId())).thenReturn(Optional.of(message));
+
+        MessageResponse response = messageService.editMessage(request);
+
+        Assertions.assertEquals(request.getContent().trim(), response.getContent());
+        Mockito.verify(messageRepository).save(message);
+        Mockito.verify(storageService, Mockito.never()).deleteFile(Mockito.any());
+        Assertions.assertEquals(1, response.getAttachments().size());
+    }
+
+    @Test
+    @DisplayName("Happy path: should remove attachments not in request, and return edited message")
+    void editMessage_RemoveAttachmentsNotInRequest_ReturnsEdit() {
+        Message message = createMessage("");
+        message.addAttachment(createAttachment(message));
+
+        EditMessageRequest request = new EditMessageRequest();
+        request.setMessageId(message.getId());
+        request.setUserId(message.getSenderId());
+        request.setAttachments(List.of(UUID.randomUUID()));
+
+        Mockito.when(messageRepository.findById(request.getMessageId())).thenReturn(Optional.of(message));
+
+        MessageResponse response = messageService.editMessage(request);
+
+        Assertions.assertEquals(0, response.getAttachments().size());
+    }
+
+    @Test
+    @DisplayName("Unhappy path: given empty content, should throws bad request")
+    void editMessage_EmptyContent_ThrowsBadRequest() {
+        EditMessageRequest request = new EditMessageRequest();
+        request.setMessageId(UUID.randomUUID());
+        request.setUserId(UUID.randomUUID());
+
+        Assertions.assertThrows(BadRequestException.class, () -> {
+            messageService.editMessage(request);
+        });
+
+        Mockito.verify(messageRepository, Mockito.never()).findById(Mockito.any());
     }
 }

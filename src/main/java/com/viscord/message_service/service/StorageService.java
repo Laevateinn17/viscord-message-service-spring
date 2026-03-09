@@ -26,13 +26,22 @@ public class StorageService {
         String key = String.format("%s/%s/%s", type.getPath(), entityId, UUID.randomUUID() + "." + extension);
 
         try {
-             s3Template.upload(this.bucketName, key, file.getInputStream());
+             this.s3Template.upload(this.bucketName, key, file.getInputStream());
 
             return key;
         } catch (IOException e) {
             throw new RuntimeException("Failed to read file input stream", e);
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload to AWS S3", e);
+        }
+    }
+
+
+    public void deleteFile(String key) {
+        try {
+            this.s3Template.deleteObject(this.bucketName, key);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete file from S3 bucket", e);
         }
     }
 }
