@@ -158,15 +158,15 @@ public class MessageService {
             message.setContent(request.getContent().trim());
         }
 
-        if (request.getAttachments() != null && request.getAttachments().size() < message.getAttachments().size()) {
-            message.getAttachments().removeIf(attachment -> !request.getAttachments().contains(attachment.getId()));
-
-            for (Attachment attachment : message.getAttachments()) {
-                if (!request.getAttachments().contains(attachment.getId())) {
-                    this.storageService.deleteFile(attachment.getUrl());
-                    message.getAttachments().remove(attachment);
+        if (request.getAttachments() != null) {
+            message.getAttachments().removeIf(attachment -> {
+                boolean shouldRemove = !request.getAttachments().contains(attachment.getId());
+                System.out.println("Should remove: " + shouldRemove);
+                if (shouldRemove) {
+                    storageService.deleteFile(attachment.getUrl());
                 }
-            }
+                return shouldRemove;
+            });
         }
 
         messageRepository.save(message);
